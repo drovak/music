@@ -101,20 +101,14 @@ int main(int argc, char* argv[])
 	{
 		fscanf(infile, "%ld", &val);
 		input_data[val-start] = 1;
-		input_data[val-start+1] = 1;	//expand pulse in time; manual says 6 microseconds, this is more like 17 microseconds
-		input_data[val-start+2] = 1;
-		input_data[val-start+3] = 1;
-		input_data[val-start+4] = 1;
-		input_data[val-start+5] = 1;
-		input_data[val-start+6] = 1;
-		input_data[val-start+7] = 1;
-		input_data[val-start+8] = 1;
+		input_data[val-start+1] = 1;	//expand pulse in time; manual says 6 microseconds
+		input_data[val-start+2] = 1; 
 	}
 		
 
 	src_data.data_in = input_data;
 	src_data.data_out = output_data;
-	src_data.input_frames = val-start+9;
+	src_data.input_frames = val-start+3;
 	src_data.output_frames = MAX_OUTPUT_SIZE;
 	src_data.src_ratio = 0.084807692;	//convert sample rate from 520000 (average of 1.93 microseconds per instruction) to 44100
 
@@ -130,15 +124,34 @@ int main(int argc, char* argv[])
 
 	fprintf(stderr, "number of output frames: %ld\n", src_data.output_frames_gen);
 
+	float min = 0;
+	float max = 0;
+
+	fprintf(stderr, "normalizing output data\n");
+	for (unsigned long i = 0; i < src_data.output_frames_gen; i++)
+	{
+		if (output_data[i] < min)
+			min = output_data[i];
+		if (output_data[i] > max)
+			max = output_data[i];
+	}
+	fprintf(stderr, "min: %f\tmax: %f\n", min, max);
+
+	float normalizer = (abs(min) > abs(max)) ? abs(min) : abs(max);
+
 	WAV_HEADER.chunk_size = sizeof(WAV_HEADER) - 8 + (src_data.output_frames_gen * 2);
 	WAV_HEADER.data_subchunk_size = src_data.output_frames_gen * 2;
 	
+	fprintf(stderr, "writing WAV header\n");
 	fwrite(&WAV_HEADER, 1, sizeof(WAV_HEADER), outfile);
+	
+	fprintf(stderr, "writing output data\n");
 	for (unsigned long i = 0; i < src_data.output_frames_gen; i++)
 	{
-		short data = output_data[i] * 32767;		//rounding could be improved here; probably not too important
+		short data = (output_data[i] / normalizer) * 32767;		//rounding could be improved here; probably not too important
 		fwrite(&data, 1, sizeof(data), outfile);
 	}
+	fprintf(stderr, "done\n");
 	//maybe add silence before and after main data?
 
 	free(input_data);
