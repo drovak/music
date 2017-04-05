@@ -1,0 +1,39 @@
+--- /Users/kyleowen/src/simh_mod/PDP8/pdp8_cpu.c	2017-04-04 22:20:22.000000000 -0500
++++ /Users/kyleowen/src/simh/PDP8/pdp8_cpu.c	2016-09-06 21:31:52.000000000 -0500
+@@ -203,17 +203,6 @@
+ #define HIST_MIN        64
+ #define HIST_MAX        65536
+
+-#define MUSIC
+-
+-#ifdef MUSIC
+-unsigned long inst_count = 0;
+-
+-void write_pulse()
+-{
+-	sim_printf("%ld\n", inst_count);
+-}
+-#endif
+-
+ typedef struct {
+     int32               pc;
+     int32               ea;
+@@ -428,8 +417,6 @@
+             }
+         }
+
+-inst_count++;
+-
+ switch ((IR >> 7) & 037) {                              /* decode IR<0:4> */
+
+ /* Opcode 0, AND */
+@@ -1254,9 +1241,6 @@
+                 int_enable = INT_INIT_ENABLE;
+                 LAC = 0;
+                 reset_all (1);                          /* reset all dev */
+-#ifdef MUSIC
+-				write_pulse();
+-#endif
+                 break;
+                 }                                       /* end switch pulse */
+             break;                                      /* end case 0 */
