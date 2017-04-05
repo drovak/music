@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <samplerate.h>
 
 #define MAX_INPUT_SIZE 160000000
@@ -100,9 +101,9 @@ int main(int argc, char* argv[])
 	while (!feof(infile))	//probably want some bounds checking in the loop...
 	{
 		fscanf(infile, "%ld", &val);
-		input_data[val-start] = 1;
-		input_data[val-start+1] = 1;	//expand pulse in time; manual says 6 microseconds
-		input_data[val-start+2] = 1; 
+		input_data[val-start] = 1.0f;
+		input_data[val-start+1] = 1.0f;	//expand pulse in time; manual says 6 microseconds
+		input_data[val-start+2] = 1.0f; 
 	}
 		
 
@@ -137,7 +138,7 @@ int main(int argc, char* argv[])
 	}
 	fprintf(stderr, "min: %f\tmax: %f\n", min, max);
 
-	float normalizer = (abs(min) > abs(max)) ? abs(min) : abs(max);
+	float normalizer = (fabs(min) > fabs(max)) ? fabs(min) : fabs(max);
 
 	WAV_HEADER.chunk_size = sizeof(WAV_HEADER) - 8 + (src_data.output_frames_gen * 2);
 	WAV_HEADER.data_subchunk_size = src_data.output_frames_gen * 2;
