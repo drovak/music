@@ -1,0 +1,82 @@
+--- simh/PDP8/pdp8_cpu.c	2016-09-06 21:31:52.000000000 -0500
++++ simh_mod/PDP8/pdp8_cpu.c	2017-04-06 00:07:51.000000000 -0500
+@@ -203,6 +203,18 @@
+ #define HIST_MIN        64
+ #define HIST_MAX        65536
+ 
++#define MUSIC
++
++#ifdef MUSIC
++unsigned long inst_count = 0;
++
++void write_pulse()
++{
++	sim_printf("%ld\n", inst_count);
++	inst_count = 0;
++}
++#endif
++
+ typedef struct {
+     int32               pc;
+     int32               ea;
+@@ -417,6 +429,50 @@
+             }
+         }
+ 
++#ifdef MUSIC
++switch (IR >> 9) {
++	case 0:
++	case 1:
++	case 2:
++	case 3:
++	case 4:
++		if ((IR & 0600) == 0200 || (IR & 0600) == 0) {
++			inst_count += 26;
++		} else if ((IR & 0600) == 0400) {
++			if ((IR & 0170) == 010)
++				inst_count += 40;
++			else
++				inst_count += 38;
++		} else if ((IR & 0600) == 0600) {
++			if ((IR & 0170) == 010)
++				inst_count += (PC & 07600) ? 38 : 40;
++			else
++				inst_count += 38;
++		}
++		break;
++	case 5:
++		if ((IR & 0600) == 0200 || (IR & 0600) == 0) {
++			inst_count += 12;
++		} else if ((IR & 0600) == 0400) {
++			if ((IR & 0170) == 010)
++				inst_count += 26;
++			else
++				inst_count += 24;
++		} else if ((IR & 0600) == 0600) {
++			if ((IR & 0170) == 010)
++				inst_count += (PC & 07600) ? 24 : 26;
++			else
++				inst_count += 24;
++		}
++		break;
++	case 6:
++	case 7:
++	default:
++		inst_count += 12;
++		break;
++}
++#endif
++
+ switch ((IR >> 7) & 037) {                              /* decode IR<0:4> */
+ 
+ /* Opcode 0, AND */
+@@ -1241,6 +1297,9 @@
+                 int_enable = INT_INIT_ENABLE;
+                 LAC = 0;
+                 reset_all (1);                          /* reset all dev */
++#ifdef MUSIC
++				write_pulse();
++#endif
+                 break;
+                 }                                       /* end switch pulse */
+             break;                                      /* end case 0 */
