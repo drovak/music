@@ -15,15 +15,21 @@
 
 #define PULSE_LENGTH 7
 
+//#define QUALITY SRC_LINEAR
+//#define QUALITY SRC_ZERO_ORDER_HOLD
+#define QUALITY SRC_SINC_FASTEST
+//#define QUALITY SRC_SINC_MEDIUM_QUALITY
+
+#define AUDIO_DELAY 0
+
 #define VOLUME 0.8f
 
-#define MAX_INPUT_SIZE 4096
-#define MAX_OUTPUT_SIZE 512
+#define BUF_WINDOW_SIZE 8192
+#define MAX_INPUT_SIZE 300000000
+#define MAX_OUTPUT_SIZE 30000000
 
 #define OUTPUT_SAMPLE_RATE (44100)
 #define FRAMES_PER_BUFFER (64)
-
-int fill_buffer(char *init);
 
 FILE *infile;
 FILE *outfile;
@@ -44,16 +50,16 @@ struct __attribute__((__packed__)) wav_header {
 	unsigned int data_subchunk_size;
 } WAV_HEADER;
 
-float input_data[MAX_INPUT_SIZE];
+float *input_data;
 float *output_data;
 
-unsigned long last_data = 0;
+unsigned long long last_data = 0;
 int done = 0;
 
 typedef struct
 {
-	unsigned long playback_ptr;
-	unsigned long total_frames;
+	unsigned long long playback_ptr;
+	unsigned long long total_frames;
 	float *output_data;
 	float normalizer;
 	char message[20];
@@ -80,7 +86,12 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
     {
 		if (data->playback_ptr < last_data)
 		{
-			*out++ = data->output_data[data->playback_ptr++] / data->normalizer;
+			*out = data->output_data[data->playback_ptr++] * data->normalizer;
+			if (*out > 1)
+			{
+				fprintf(stderr, "clipping detected! %f\n", *out);
+			}
+			*out++;
 		}
 		else
 		{
@@ -104,54 +115,70 @@ static void StreamFinished( void* userData )
 
 char writeWAV = 0;
 
-int fill_buffer(char *init)
+/*
+int fill_buffer(char *init, float *array)
 {
-	unsigned long val;
-	static unsigned long cur_time;
-	static unsigned long next_pulse;
+	static unsigned long val;
+	static unsigned long input_ptr;
 	static int pulses_left;
-	static int input_ptr;
-	static int empty_frames_left;
+	unsigned long ret;
 	if (*init)
 	{
 		fscanf(infile, "%ld", &val);	//discard first value
 		val = 0;
-		cur_time = 0;
-		next_pulse = 0;
-		pulses_left = PULSE_LENGTH;
 		input_ptr = 0;
-		empty_frames_left = 0;
+		pulses_left = PULSE_LENGTH;
 		*init = 0;
 	}
 
-	memset(input_data, 0, MAX_INPUT_SIZE * sizeof(float));
 
-	if (empty_frames_left--)
+	if (pulses_left)
 	{
+		for (int i = 0; pulses_left > 0 && i < MAX_INPUT_SIZE; i++)
+		{
+			input_data[i] = 1.0f;
+			pulses_left--;
+		}
+	}
+
+	if (input_ptr > MAX_INPUT_SIZE)
+	{
+		input_ptr -= MAX_INPUT_SIZE;
+		fprintf(stderr, "empty buffer\n");
 		return MAX_INPUT_SIZE;
 	}
 
-	do 
+	do
 	{
-		for (pulses_left; input_ptr < MAX_INPUT_SIZE && pulses_left > 0; pulses_left--)
-			input_data[input_ptr++] = 1.0f;
-		if (pulses_left)
+		for (int i = input_ptr; pulses_left > 0 && i < MAX_INPUT_SIZE; i++)
 		{
-			next_pulse = 0;
-			return MAX_INPUT_SIZE;
+			input_data[i] = 1.0f;
+			pulses_left--;
 		}
-		pulses_left = PULSE_LENGTH;
-		if (feof(infile))
-			return input_ptr;
-		fscanf(infile, "%ld", &val);
-		cur_time += val;
-		empty_frames_left = ((val / 10) + (((val % 10) < 5) ? 0 : 1)) / MAX_INPUT_SIZE;
-		next_pulse = ((cur_time / 10) + (((cur_time % 10) < 5) ? 0 : 1)) % MAX_INPUT_SIZE;
-		input_ptr = next_pulse;
-		if (empty_frames_left--)
-			return MAX_INPUT_SIZE;
-	} while (input_ptr < MAX_INPUT_SIZE);
-}
+
+		if (!feof(infile) && !pulses_left)
+		{
+			fscanf(infile, "%ld", &val);
+
+			pulses_left = PULSE_LENGTH;
+			
+			input_ptr += val / 10;
+		}
+		else
+		{
+			done = 1;
+		}
+	}
+	while (input_ptr < MAX_INPUT_SIZE && !done);
+	if (!done)
+	{
+		return MAX_INPUT_SIZE;
+	}
+	else
+	{
+		return input_ptr + PULSE_LENGTH;
+	}
+}*/
 
 
 int main(int argc, char* argv[])
@@ -194,6 +221,29 @@ int main(int argc, char* argv[])
 		WAV_HEADER.bits_per_samp = 16;
 	}
 
+	fprintf(stderr, "calling malloc() for input data\n");
+	input_data = (float *) malloc(MAX_INPUT_SIZE * sizeof(float));
+	if (input_data == NULL)
+	{
+		fprintf(stderr, "Unable to allocate input array!\n");
+		exit(-1);
+	}
+	memset(input_data, 0, MAX_INPUT_SIZE * sizeof(float));
+	
+	unsigned long val;
+	unsigned long cur_time = 0;
+
+	fprintf(stderr, "reading input file\n");
+	fscanf(infile, "%ld", &val);
+	while (!feof(infile))	//probably want some bounds checking in the loop...
+	{
+		fscanf(infile, "%ld", &val);
+		for (int i = 0; i < PULSE_LENGTH; i++)
+			input_data[(cur_time / 10) + i + (((cur_time % 10) < 5) ? 0 : 1)] = 1.0f;
+		cur_time += val;
+	}
+	fprintf(stderr, "current time: %lu\n", cur_time);
+
 	fprintf(stderr, "calling malloc() for output data\n");
 	output_data = (float *) malloc(MAX_OUTPUT_SIZE * sizeof(float));
 	if (output_data == NULL)
@@ -201,12 +251,13 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "Unable to allocate output array!\n");
 		exit(-1);
 	}
+	fprintf(stderr, "allocated output data at %p\n", (void*) output_data);
 
 	SRC_DATA src_data;
 	SRC_STATE *src_state;
 	int error;
 
-	if ((src_state = src_new(SRC_SINC_MEDIUM_QUALITY, 1, &error)) == NULL)
+	if ((src_state = src_new(QUALITY, 1, &error)) == NULL)
 	{	
 		fprintf(stderr, "error: src_new() failed: %s\n", src_strerror(error));
 		exit(-1);
@@ -270,14 +321,25 @@ int main(int argc, char* argv[])
 	char init = 1;
 	int stream_started = 0;
 
-	while (!done)
+	unsigned long total_input_frames = cur_time / 10 + PULSE_LENGTH + 1;
+
+	unsigned int delay = 0;
+
+	while (total_input_frames > 0)
 	{
-		src_data.input_frames = fill_buffer(&init);
+		//fprintf(stderr, "filling buffer\n");
+		//src_data.input_frames = fill_buffer(&init);
+		//fprintf(stderr, "got %ld frames\n", src_data.input_frames);
+		//if (done)
+		//	src_data.end_of_input = 1;
+		/*
 		if (src_data.input_frames < MAX_INPUT_SIZE)
 		{
 			done = 1;
 			src_data.end_of_input = 1;
-		}
+		}*/
+		src_data.input_frames = (total_input_frames > BUF_WINDOW_SIZE) ? BUF_WINDOW_SIZE : total_input_frames;
+		total_input_frames -= src_data.input_frames;
 
 		if ((error = src_process(src_state, &src_data)))
 		{
@@ -286,21 +348,36 @@ int main(int argc, char* argv[])
 		}
 		if (src_data.input_frames_used != src_data.input_frames)
 		{
-			fprintf(stderr, "error: not all input frames consumed!\n");
+			fprintf(stderr, "error: not all input frames consumed! %ld used, %ld sent\n", src_data.input_frames_used, src_data.input_frames);
 			exit(-1);
 		}
+		//fprintf(stderr, "got %ld frames, moving from %p ", src_data.output_frames_gen, src_data.data_out);
 
+		src_data.data_in += src_data.input_frames;
 		src_data.data_out += src_data.output_frames_gen;
 		last_data += src_data.output_frames_gen;
-
-		if (!stream_started)
+		
+		//fprintf(stderr, "to %p, %lld frames total\n", src_data.data_out, last_data);
+		//fprintf(stderr, "%p, %lld frames total\n", src_data.data_out, last_data);
+		delay++;
+		if (!stream_started && delay > AUDIO_DELAY)
 		{
 			stream_started = 1;
 			err = Pa_StartStream( stream );
 			if( err != paNoError ) goto error;
 		}
 	}
-
+	done = 1;
+	if (!stream_started)
+	{
+		stream_started = 1;
+		err = Pa_StartStream( stream );
+		if( err != paNoError ) goto error;
+	}
+/*
+	err = Pa_StartStream( stream );
+	if( err != paNoError ) goto error;
+*/	
 
 	while( ( err = Pa_IsStreamActive( stream ) ) == 1 ) {
 		Pa_Sleep(1000);
