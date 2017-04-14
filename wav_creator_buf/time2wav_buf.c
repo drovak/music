@@ -91,7 +91,7 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
 			{
 				fprintf(stderr, "clipping detected! %f\n", *out);
 			}
-			*out++;
+			out++;
 		}
 		else
 		{
@@ -119,33 +119,27 @@ char writeWAV = 0;
 int fill_buffer(char *init, float *array)
 {
 	static unsigned long val;
-	static unsigned long input_ptr;
 	static int pulses_left;
-	unsigned long ret;
+
 	if (*init)
 	{
 		fscanf(infile, "%ld", &val);	//discard first value
 		val = 0;
 		input_ptr = 0;
-		pulses_left = PULSE_LENGTH;
+		pulse_ticks_left = PULSE_LENGTH;
 		*init = 0;
 	}
 
+	int buf_empty_space = MAX_INPUT_SIZE;
 
-	if (pulses_left)
+	if (pulse_ticks_left)
 	{
-		for (int i = 0; pulses_left > 0 && i < MAX_INPUT_SIZE; i++)
+		buf_empty_space -= pulse_ticks_left;
+		for (int i = 0; pulse_ticks_left > 0 && i < MAX_INPUT_SIZE; i++)
 		{
 			input_data[i] = 1.0f;
 			pulses_left--;
 		}
-	}
-
-	if (input_ptr > MAX_INPUT_SIZE)
-	{
-		input_ptr -= MAX_INPUT_SIZE;
-		fprintf(stderr, "empty buffer\n");
-		return MAX_INPUT_SIZE;
 	}
 
 	do
@@ -178,8 +172,8 @@ int fill_buffer(char *init, float *array)
 	{
 		return input_ptr + PULSE_LENGTH;
 	}
-}*/
-
+}
+*/
 
 int main(int argc, char* argv[])
 {
