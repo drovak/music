@@ -9,8 +9,9 @@ time2wav=../wav_creator_buf/time2wav
 
 if test $infile -nt $outfile ; then
 	$pdp8exe pdp8.ini $1 > $outfile
-	sed -i '' -e '1,11d' $outfile
+	sed -i '' -e '1,6d' $outfile
 	head $outfile > $errfile
+	sed -i '' -e '1,5d' $outfile
 	sed -i '' -e '$ d' $outfile
 	tr -d '\r' < $outfile > temp.txt
 	tr -dc '0-9\n' < temp.txt > $outfile
