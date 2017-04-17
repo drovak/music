@@ -2,8 +2,8 @@
  * PDP-8 Music Demonstration
  * Converts time values of CAF instructions to a WAV file
  * Kyle Owen - 4 April 2017
- * Compile with gcc -o time2wav time2wav.c -lsamplerate
- * Usage: time2wav yankee.txt yankee.wav
+ * Compile with gcc -o time2wav time2wav.c -lsamplerate -lportaudio
+ * Usage: time2wav yankee.txt 
  */
 
 #include <stdio.h>
@@ -17,8 +17,8 @@
 
 //#define QUALITY SRC_LINEAR
 //#define QUALITY SRC_ZERO_ORDER_HOLD
-#define QUALITY SRC_SINC_FASTEST
-//#define QUALITY SRC_SINC_MEDIUM_QUALITY
+//#define QUALITY SRC_SINC_FASTEST
+#define QUALITY SRC_SINC_MEDIUM_QUALITY
 
 #define AUDIO_DELAY 0
 
@@ -87,7 +87,7 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
 		if (data->playback_ptr < last_data)
 		{
 			*out = data->output_data[data->playback_ptr++] * data->normalizer;
-			if (*out > 1)
+			if (*out > 1.0f)
 			{
 				fprintf(stderr, "clipping detected! %f\n", *out);
 			}
@@ -114,66 +114,6 @@ static void StreamFinished( void* userData )
 }
 
 char writeWAV = 0;
-
-/*
-int fill_buffer(char *init, float *array)
-{
-	static unsigned long val;
-	static int pulses_left;
-
-	if (*init)
-	{
-		fscanf(infile, "%ld", &val);	//discard first value
-		val = 0;
-		input_ptr = 0;
-		pulse_ticks_left = PULSE_LENGTH;
-		*init = 0;
-	}
-
-	int buf_empty_space = MAX_INPUT_SIZE;
-
-	if (pulse_ticks_left)
-	{
-		buf_empty_space -= pulse_ticks_left;
-		for (int i = 0; pulse_ticks_left > 0 && i < MAX_INPUT_SIZE; i++)
-		{
-			input_data[i] = 1.0f;
-			pulses_left--;
-		}
-	}
-
-	do
-	{
-		for (int i = input_ptr; pulses_left > 0 && i < MAX_INPUT_SIZE; i++)
-		{
-			input_data[i] = 1.0f;
-			pulses_left--;
-		}
-
-		if (!feof(infile) && !pulses_left)
-		{
-			fscanf(infile, "%ld", &val);
-
-			pulses_left = PULSE_LENGTH;
-			
-			input_ptr += val / 10;
-		}
-		else
-		{
-			done = 1;
-		}
-	}
-	while (input_ptr < MAX_INPUT_SIZE && !done);
-	if (!done)
-	{
-		return MAX_INPUT_SIZE;
-	}
-	else
-	{
-		return input_ptr + PULSE_LENGTH;
-	}
-}
-*/
 
 int main(int argc, char* argv[])
 {
@@ -326,12 +266,12 @@ int main(int argc, char* argv[])
 		//fprintf(stderr, "got %ld frames\n", src_data.input_frames);
 		//if (done)
 		//	src_data.end_of_input = 1;
-		/*
-		if (src_data.input_frames < MAX_INPUT_SIZE)
-		{
-			done = 1;
-			src_data.end_of_input = 1;
-		}*/
+		
+		//if (src_data.input_frames < MAX_INPUT_SIZE)
+		//{
+		//	done = 1;
+		//	src_data.end_of_input = 1;
+		//}
 		src_data.input_frames = (total_input_frames > BUF_WINDOW_SIZE) ? BUF_WINDOW_SIZE : total_input_frames;
 		total_input_frames -= src_data.input_frames;
 

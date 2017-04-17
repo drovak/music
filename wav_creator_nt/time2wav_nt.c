@@ -11,6 +11,9 @@
 #include <string.h>
 #include <math.h>
 #include <samplerate.h>
+#include <time.h>
+
+#define QUALITY SRC_SINC_MEDIUM_QUALITY
 
 #define PULSE_LENGTH 7
 
@@ -118,7 +121,10 @@ int main(int argc, char* argv[])
 	src_data.src_ratio = 0.0441;
 
 	fprintf(stderr, "performing sample rate conversion\n");
-	int ret = src_simple(&src_data, SRC_SINC_MEDIUM_QUALITY, 1);
+	clock_t tic = clock();
+	int ret = src_simple(&src_data, QUALITY, 1);
+	clock_t toc = clock();
+
 	if (ret)
 	{
 		fprintf(stderr, "error %d: %s!\n", ret, src_strerror(ret));
@@ -156,6 +162,8 @@ int main(int argc, char* argv[])
 		fwrite(&data, 1, sizeof(data), outfile);
 	}
 	fprintf(stderr, "done\n");
+
+	fprintf(stderr, "elapsed: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
 	//maybe add silence before and after main data?
 
 	free(input_data);
